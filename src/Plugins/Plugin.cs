@@ -1,9 +1,6 @@
 ﻿using System;
-using System.Collections.Generic;
 using System.Linq;
-using System.Text;
 using System.Reflection;
-using System.Reflection.Emit;
 
 namespace LiteLoader.Plugins
 {
@@ -40,11 +37,6 @@ namespace LiteLoader.Plugins
             Title = info.Title;
             Author = info.Author;
             Version = info.Version;
-        }
-
-        public object ExecuteHook(string hookName, object[] arguments)
-        {
-            throw new NotImplementedException();
         }
 
         #region Overloads

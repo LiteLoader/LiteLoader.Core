@@ -1,6 +1,4 @@
-﻿using System;
-using LiteLoader.Pooling;
-using HarmonyLib;
+﻿using LiteLoader.Pooling;
 
 namespace LiteLoader
 {

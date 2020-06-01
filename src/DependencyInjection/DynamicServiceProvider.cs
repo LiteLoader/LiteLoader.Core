@@ -1,12 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 
 namespace LiteLoader.DependencyInjection
 {
-    public sealed class DynamicServiceProvider : IDynamicServices
+    public sealed class DynamicServiceProvider : IDynamicServiceProvider
     {
         private readonly Type _iServiceType = typeof(IServiceProvider);
 

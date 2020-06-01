@@ -10,7 +10,7 @@ namespace LiteLoader.Pooling
         /// Initial startup count of each array length 
         /// </summary>
         public readonly int InitialPooledItems;
-        
+
         /// <summary>
         /// Maximum array length
         /// </summary>

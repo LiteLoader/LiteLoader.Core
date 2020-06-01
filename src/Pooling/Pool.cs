@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Collections.Generic;
-using System.Text;
-using System.Reflection;
 
 namespace LiteLoader.Pooling
 {
@@ -20,7 +18,7 @@ namespace LiteLoader.Pooling
             }
 
             Type type = obj.GetType();
-            
+
             if (type.IsArray)
             {
                 Type element = type.GetElementType();
