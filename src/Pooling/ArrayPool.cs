@@ -3,7 +3,7 @@ using System.Collections.Generic;
 
 namespace LiteLoader.Pooling
 {
-    public sealed class ArrayPool<T> : IArrayPool
+    public sealed class ArrayPool<T> : IArrayPool<T>
     {
 
         /// <summary>
@@ -22,10 +22,10 @@ namespace LiteLoader.Pooling
         public readonly int MaxPooledArrays;
 
         /// <inheritdoc cref="IArrayPool.Empty"/>
-        public Array Empty { get; }
+        public T[] Empty { get; }
 
         private readonly Type _type;
-        private readonly List<Queue<Array>> _pool;
+        private readonly List<Queue<T[]>> _pool;
 
         public ArrayPool(int initialArrayCount, int maxArrayLength, int maxPooledArrays)
         {
@@ -54,21 +54,26 @@ namespace LiteLoader.Pooling
             MaxPooledArrays = maxPooledArrays;
 
             _type = typeof(T);
-            Empty = Array.CreateInstance(_type, 0);
-            _pool = new List<Queue<Array>>(maxArrayLength);
+            Empty = new T[0];
+            _pool = new List<Queue<T[]>>(maxArrayLength);
 
             for (int i = 1; i < MaxArrayLength; i++)
             {
-                Queue<Array> queue = new Queue<Array>(InitialPooledItems);
+                Queue<T[]> queue = new Queue<T[]>(InitialPooledItems);
                 _pool.Add(queue);
                 Setup(i, queue);
             }
         }
 
-        /// <inheritdoc cref="IArrayPool.Get(int)"/>
-        public Array Get(int length)
+        /// <inheritdoc cref="IArrayPool.Get" />
+        public T[] Get()
         {
-            Console.WriteLine($"Get Array {typeof(T)} of length {length}");
+            return Empty;
+        }
+
+        /// <inheritdoc cref="IArrayPool.Get(int)"/>
+        public T[] Get(int length)
+        {
             if (length < 0)
             {
                 throw new ArgumentException("Negative values are not allowed", nameof(length));
@@ -81,10 +86,10 @@ namespace LiteLoader.Pooling
 
             if (length > MaxArrayLength)
             {
-                return Array.CreateInstance(_type, length);
+                return new T[length];
             }
 
-            Queue<Array> queue = _pool[length - 1];
+            Queue<T[]> queue = _pool[length - 1];
 
             lock (queue)
             {
@@ -97,27 +102,25 @@ namespace LiteLoader.Pooling
             }
         }
 
-        /// <inheritdoc cref="IArrayPool.Free(Array)"/>
-        public void Free(Array array)
+        /// <inheritdoc cref="IPool.Free(T)"/>
+        public void Free(T[] item)
         {
-            if (array == null || array.Length == 0)
+            if (item == null || item.Length == 0)
             {
                 return;
             }
 
-            Console.WriteLine($"Free Array {array.GetType().GetElementType()} of length {array.Length}");
-
-            for (int i = 0; i < array.Length; i++)
+            for (int i = 0; i < item.Length; i++)
             {
-                array.SetValue(null, i);
+                item[i] = default;
             }
 
-            if (array.Length > MaxArrayLength)
+            if (item.Length > MaxArrayLength)
             {
                 return;
             }
 
-            Queue<Array> queue = _pool[array.Length - 1];
+            Queue<T[]> queue = _pool[item.Length - 1];
 
             lock (queue)
             {
@@ -126,15 +129,15 @@ namespace LiteLoader.Pooling
                     return;
                 }
 
-                queue.Enqueue(array);
+                queue.Enqueue(item);
             }
         }
 
-        private void Setup(int length, Queue<Array> queue)
+        private void Setup(int length, Queue<T[]> queue)
         {
             while (queue.Count < InitialPooledItems)
             {
-                queue.Enqueue(Array.CreateInstance(_type, length));
+                queue.Enqueue(new T[length]);
             }
         }
     }
