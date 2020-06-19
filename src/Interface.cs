@@ -1,9 +1,14 @@
 ﻿using LiteLoader.Pooling;
+using System;
 
 namespace LiteLoader
 {
     public static class Interface
     {
+        public static LiteLoader CoreModule { get; private set; }
+
+        public static Action<string> Logger;
+
         #region Initialization
 
         /// <summary>
@@ -11,7 +16,7 @@ namespace LiteLoader
         /// </summary>
         public static void Startup(string gameAssembly)
         {
-
+            CoreModule = new LiteLoader(null);
         }
 
         /// <summary>

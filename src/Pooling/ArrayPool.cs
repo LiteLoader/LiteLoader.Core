@@ -57,11 +57,11 @@ namespace LiteLoader.Pooling
             Empty = new T[0];
             _pool = new List<Queue<T[]>>(maxArrayLength);
 
-            for (int i = 1; i < MaxArrayLength; i++)
+            for (int i = 0; i < MaxArrayLength; i++)
             {
                 Queue<T[]> queue = new Queue<T[]>(InitialPooledItems);
                 _pool.Add(queue);
-                Setup(i, queue);
+                Setup(i + 1, queue);
             }
         }
 

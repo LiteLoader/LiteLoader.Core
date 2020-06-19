@@ -1,8 +1,9 @@
-﻿using System;
-using System.Collections;
+﻿using LiteLoader.DependencyInjection;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Security.Policy;
 
 namespace LiteLoader.Pooling
 {
@@ -10,22 +11,61 @@ namespace LiteLoader.Pooling
     {
         private static readonly IArrayPool<object> _poolHelpers;
         private static readonly Dictionary<Type, object> _pools;
-        private static readonly MethodInfo _freePool;
-        private static readonly MethodInfo _getPool;
-        private static readonly MethodInfo _getArray;
+        private static readonly Type _poolType;
+        private static readonly Type[] _getPoolParamTypes;
+        private static readonly Type[] _getArrayParamTypes;
 
         static Pool()
         {
+            _poolType = typeof(IPool<>);
             _pools = new Dictionary<Type, object>();
-            _poolHelpers = new ArrayPool<object>(1, 1, 10);
-            _getArray = typeof(IArrayPool<>)
-                .GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => m.Name.Equals("Get", StringComparison.Ordinal))
-                .FirstOrDefault(m => m.GetParameters().Length == 0 && m.GetParameters()[0].ParameterType == typeof(int));
-            _freePool = typeof(IPool<>)
-                .GetMethod("Free");
-            _getPool = typeof(IPool<>)
-                .GetMethod("Get");
+            _poolHelpers = new ArrayPool<object>(1, 1, 20);
+            _getArrayParamTypes = new Type[] { typeof(int) };
+            _getPoolParamTypes = new Type[0];
+        }
+
+        internal static object FindPool(Type type)
+        {
+            if (type == null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+
+            if (_poolType.IsAssignableFrom(type))
+            {
+                type = type.GetGenericArguments()[0];
+            }
+
+            lock (_pools)
+            {
+                if (!_pools.TryGetValue(type, out object pool))
+                {
+                    return null;
+                }
+
+                return pool;
+            }
+        }
+
+        public static void RegisterPool<T>(IPool<T> pool)
+        {
+            if (pool == null)
+            {
+                throw new ArgumentNullException(nameof(pool));
+            }
+
+            Type type = typeof(T);
+            
+            lock (_pools)
+            {
+                if (_pools.TryGetValue(type, out object poolObj))
+                {
+                    throw new InvalidOperationException("Pool already exists");
+                }
+
+                _pools.Add(type, pool);
+                Interface.CoreModule.ServiceProvider.AddSingleton(pool);
+            }
         }
 
         public static object Get(Type type)
@@ -44,7 +84,7 @@ namespace LiteLoader.Pooling
                 }
             }
 
-            return _getPool.Invoke(pool, _poolHelpers.Empty);
+            return pool.GetType().GetMethod("Get", _getPoolParamTypes).Invoke(pool, _poolHelpers.Empty);
         }
 
         public static void Free(object obj)
@@ -67,7 +107,7 @@ namespace LiteLoader.Pooling
 
             object[] free = _poolHelpers.Get(1);
             free[0] = obj;
-            _freePool.Invoke(pool, free);
+            pool.GetType().GetMethod("Free").Invoke(pool, free);
             _poolHelpers.Free(free);
         }
 
@@ -92,24 +132,21 @@ namespace LiteLoader.Pooling
                 throw new ArgumentNullException(nameof(type));
             }
 
-            if (!type.IsArray)
-            {
-                type = type.MakeArrayType();
-            }
-
             object pool;
+            Type aT = type.MakeArrayType();
             lock (_pools)
             {
-                if (!_pools.TryGetValue(type, out pool))
+                if (!_pools.TryGetValue(aT, out pool))
                 {
-                    pool = CreateArrayPool(type, 0, 255, 100);
-                    _pools.Add(type, pool);
+                    pool = CreateArrayPool(type, 1, 255, 100);
+                    _pools.Add(aT, pool);
+                    Interface.CoreModule.ServiceProvider.AddSingleton(typeof(IPool<>).MakeGenericType(aT), pool);
                 }
             }
 
             object[] args = _poolHelpers.Get(1);
             args[0] = length;
-            Array array = (Array)_getArray.Invoke(pool, args);
+            Array array = (Array)pool.GetType().GetMethod("Get", _getArrayParamTypes).Invoke(pool, args);
             _poolHelpers.Free(args);
             return array;
         }

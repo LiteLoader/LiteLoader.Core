@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
 
 namespace LiteLoader.DependencyInjection
 {
@@ -55,7 +56,20 @@ namespace LiteLoader.DependencyInjection
             {
                 if (!_services.TryGetValue(serviceType, out descriptor))
                 {
-                    return null;
+
+                    foreach (KeyValuePair<Type, ServiceDescriptor> d in _services)
+                    {
+                        if (d.Key.IsAssignableFrom(serviceType))
+                        {
+                            descriptor = d.Value;
+                            break;
+                        }
+                    }
+
+                    if (descriptor == null)
+                    {
+                        return null;
+                    }
                 }
             }
 
