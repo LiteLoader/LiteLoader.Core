@@ -7,7 +7,7 @@ namespace LiteLoader.DependencyInjection
 {
     internal class ExecutionEngine : IExecutionEngine
     {
-        public object ExecuteMethod(MethodBase method, object[] arguments, object instance = null, IServiceProvider serviceProvider = null)
+        public object ExecuteMethod(MethodBase method, object[] arguments, object instance = null)
         {
             if (arguments == null)
             {
@@ -15,40 +15,37 @@ namespace LiteLoader.DependencyInjection
             }
 
             ParameterInfo[] parameters = method.GetParameters();
-            object[] argvars = CreateParameterMap(parameters, arguments, out int?[] map, serviceProvider);
 
-            if (argvars == null)
+            if (method is ConstructorInfo ctor)
             {
-                throw new ExecutionEngineException("Unable to execute method with provided arguments");
+                return ctor.Invoke(arguments);
             }
-
-            object value;
-            try
+            else
             {
-                if (method is ConstructorInfo ctor)
-                {
-                    value = ctor.Invoke(argvars);
-                }
-                else
-                {
-                    value = method.Invoke(instance, argvars);
-                }
-                HandleByRefs(parameters, map, argvars, arguments);
-                return value;
-            }
-            finally
-            {
-                Pool.Free(argvars);
-                Pool.Free(map);
+                return method.Invoke(instance, arguments);
             }
         }
 
-        private object[] CreateParameterMap(ParameterInfo[] parameters, object[] arguments, out int?[] map, IServiceProvider serviceProvider = null)
+        public bool CreateParameterMap(ParameterInfo[] parameters, object[] arguments, out int?[] map, out object[] newArgs, out int usedArguments, IServiceProvider serviceProvider = null)
         {
-            map = Pool.Array<int?>(parameters.Length);
-            object[] argVars = Pool.Array<object>(parameters.Length);
+            map = null;
+            newArgs = null;
+            usedArguments = 0;
+            if (parameters == null)
+            {
+                return false;
+            }
 
-            int argSkip = 0;
+            if (parameters.Length == 0)
+            {
+                map = Pool.Array<int?>(0);
+                newArgs = Pool.Array<object>(0);
+                return true;
+            }
+
+            map = Pool.Array<int?>(parameters.Length);
+            newArgs = Pool.Array<object>(parameters.Length);
+
             for (int i = 0; i < parameters.Length; i++)
             {
                 ParameterInfo p = parameters[i];
@@ -60,15 +57,15 @@ namespace LiteLoader.DependencyInjection
                 }
 
                 bool found = false;
-                for (int n = 0 + argSkip; n < arguments.Length; n++)
+                for (int n = 0 + usedArguments; n < arguments.Length; n++)
                 {
                     object a = arguments[n];
-                    
+
                     if (a == null)
                     {
                         if (p.IsOut || pt.IsByRef)
                         {
-                            argSkip++;
+                            usedArguments++;
                             map[p.Position] = n;
                             found = true;
                         }
@@ -83,55 +80,42 @@ namespace LiteLoader.DependencyInjection
                     Type at = a.GetType();
                     if (!pt.IsAssignableFrom(at))
                     {
-                        TypeConverter converter = TypeDescriptor.GetConverter(pt);
-                        if (converter.CanConvertFrom(at))
+                        if (TryConvert(a, pt, out object converted))
                         {
-                            argSkip++;
+                            usedArguments++;
                             map[p.Position] = n;
                             found = true;
-                            argVars[p.Position] = converter.ConvertFrom(a);
+                            newArgs[p.Position] = converted;
                         }
-                        else
-                        {
-                            converter = TypeDescriptor.GetConverter(at);
-                            if (converter.CanConvertTo(pt))
-                            {
-                                argSkip++;
-                                map[p.Position] = n;
-                                found = true;
-                                argVars[p.Position] = converter.ConvertTo(a, pt);
-                            }
-                        }
-
                         break;
                     }
 
-                    argSkip++;
+                    usedArguments++;
                     map[p.Position] = n;
                     found = true;
-                    argVars[p.Position] = a;
+                    newArgs[p.Position] = a;
                     break;
                 }
-                
+
                 if (!found)
                 {
                     object service = serviceProvider?.GetService(pt);
                     if (service == null)
                     {
-                        Pool.Free(argVars);
+                        Pool.Free(newArgs);
                         Pool.Free(map);
                         map = null;
-                        argVars = null;
-                        return argVars;
+                        newArgs = null;
+                        return false;
                     }
-                    argVars[p.Position] = service;
+                    newArgs[p.Position] = service;
                 }
             }
 
-            return argVars;
+            return true;
         }
 
-        private void HandleByRefs(ParameterInfo[] parameters, int?[] map, object[] argVar, object[] original)
+        public void ProcessByRefs(ParameterInfo[] parameters, object[] args, object[] original, int?[] map)
         {
             for (int i = 0; i < map.Length; i++)
             {
@@ -160,9 +144,102 @@ namespace LiteLoader.DependencyInjection
 
                 if (p.IsOut || p.ParameterType.IsByRef)
                 {
-                    original[map[i].Value] = argVar[i];
+                    object originalValue = original[map[i].Value];
+
+                    if (originalValue != null)
+                    {
+                        Type oT = originalValue.GetType();
+
+                        if (!oT.IsInstanceOfType(args[i]))
+                        {
+                            if (TryConvert(args[i], oT, out object converted))
+                            {
+                                original[map[i].Value] = converted;
+                                continue;
+                            }
+                        }
+                    }
+
+                    original[map[i].Value] = args[i];
                 }
             }
+        }
+
+        private bool TryConvert(object value, Type requestedType, out object converted)
+        {
+            converted = null;
+            if (value == null || requestedType == null)
+            {
+                return false;
+            }
+
+            TypeConverter converter = TypeDescriptor.GetConverter(requestedType);
+            Type valueType = value.GetType();
+            if (converter != null)
+            {
+                if (converter.CanConvertFrom(valueType))
+                {
+                    converted = converter.ConvertFrom(value);
+                    return true;
+                }
+            }
+
+            converter = TypeDescriptor.GetConverter(valueType);
+            if (converter != null)
+            {
+                if (converter.CanConvertTo(requestedType))
+                {
+                    converted = converter.ConvertTo(value, requestedType);
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        public MethodBase FindBestMethod(MethodBase[] methods, object[] arguments, out object[] newArgs, out int?[] map, out ParameterInfo[] parameters, IServiceProvider serviceProvider = null)
+        {
+            MethodBase best = null;
+            int usedArguments = -1;
+            newArgs = null;
+            map = null;
+            parameters = null;
+
+            for (int i = 0; i < methods.Length; i++)
+            {
+                MethodBase method = methods[i];
+                ParameterInfo[] param = method.GetParameters();
+
+                if (!CreateParameterMap(param, arguments, out int?[] pMap, out object[] pArgs, out int usedArgs, serviceProvider))
+                {
+                    continue;
+                }
+
+                if (usedArgs > usedArguments)
+                {
+                    if (newArgs != null)
+                    {
+                        Pool.Free(newArgs);
+                    }
+
+                    if (map != null)
+                    {
+                        Pool.Free(map);
+                    }
+
+                    best = method;
+                    parameters = param;
+                    newArgs = pArgs;
+                    map = pMap;
+                }
+                else
+                {
+                    Pool.Free(pArgs);
+                    Pool.Free(pMap);
+                }
+            }
+
+            return best;
         }
     }
 }
