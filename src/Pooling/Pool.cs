@@ -6,11 +6,11 @@ namespace LiteLoader.Pooling
 {
     public sealed class Pool
     {
+        private static readonly Type[] _getArrayParamTypes;
+        private static readonly Type[] _getPoolParamTypes;
         private static readonly IArrayPool<object> _poolHelpers;
         private static readonly Dictionary<Type, object> _pools;
         private static readonly Type _poolType;
-        private static readonly Type[] _getPoolParamTypes;
-        private static readonly Type[] _getArrayParamTypes;
 
         static Pool()
         {
@@ -19,69 +19,6 @@ namespace LiteLoader.Pooling
             _poolHelpers = new ArrayPool<object>(1, 1, 20);
             _getArrayParamTypes = new Type[] { typeof(int) };
             _getPoolParamTypes = new Type[0];
-        }
-
-        internal static object FindPool(Type type)
-        {
-            if (type == null)
-            {
-                throw new ArgumentNullException(nameof(type));
-            }
-
-            if (_poolType.IsAssignableFrom(type))
-            {
-                type = type.GetGenericArguments()[0];
-            }
-
-            lock (_pools)
-            {
-                if (!_pools.TryGetValue(type, out object pool))
-                {
-                    return null;
-                }
-
-                return pool;
-            }
-        }
-
-        public static void RegisterPool<T>(IPool<T> pool)
-        {
-            if (pool == null)
-            {
-                throw new ArgumentNullException(nameof(pool));
-            }
-
-            Type type = typeof(T);
-            
-            lock (_pools)
-            {
-                if (_pools.TryGetValue(type, out object poolObj))
-                {
-                    throw new InvalidOperationException("Pool already exists");
-                }
-
-                _pools.Add(type, pool);
-                Interface.CoreModule.ServiceProvider.AddSingleton(pool);
-            }
-        }
-
-        public static object Get(Type type)
-        {
-            if (type == null)
-            {
-                throw new ArgumentNullException(nameof(type));
-            }
-
-            object pool;
-            lock (_pools)
-            {
-                if (!_pools.TryGetValue(type, out pool))
-                {
-                    throw new NullReferenceException($"IPool<{type.FullName}> not found");
-                }
-            }
-
-            return pool.GetType().GetMethod("Get", _getPoolParamTypes).Invoke(pool, _poolHelpers.Empty);
         }
 
         public static void Free(object obj)
@@ -106,6 +43,69 @@ namespace LiteLoader.Pooling
             free[0] = obj;
             pool.GetType().GetMethod("Free").Invoke(pool, free);
             _poolHelpers.Free(free);
+        }
+
+        public static object Get(Type type)
+        {
+            if (type == null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+
+            object pool;
+            lock (_pools)
+            {
+                if (!_pools.TryGetValue(type, out pool))
+                {
+                    throw new NullReferenceException($"IPool<{type.FullName}> not found");
+                }
+            }
+
+            return pool.GetType().GetMethod("Get", _getPoolParamTypes).Invoke(pool, _poolHelpers.Empty);
+        }
+
+        public static void RegisterPool<T>(IPool<T> pool)
+        {
+            if (pool == null)
+            {
+                throw new ArgumentNullException(nameof(pool));
+            }
+
+            Type type = typeof(T);
+
+            lock (_pools)
+            {
+                if (_pools.TryGetValue(type, out object poolObj))
+                {
+                    throw new InvalidOperationException("Pool already exists");
+                }
+
+                _pools.Add(type, pool);
+                Interface.CoreModule.ServiceProvider.AddSingleton(pool);
+            }
+        }
+
+        internal static object FindPool(Type type)
+        {
+            if (type == null)
+            {
+                throw new ArgumentNullException(nameof(type));
+            }
+
+            if (_poolType.IsAssignableFrom(type))
+            {
+                type = type.GetGenericArguments()[0];
+            }
+
+            lock (_pools)
+            {
+                if (!_pools.TryGetValue(type, out object pool))
+                {
+                    return null;
+                }
+
+                return pool;
+            }
         }
 
         #region ArrayPool

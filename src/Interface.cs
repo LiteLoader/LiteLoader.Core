@@ -9,6 +9,18 @@ namespace LiteLoader
         #region Initialization
 
         /// <summary>
+        /// Begins shutdown and cleanup of LiteLoader
+        /// </summary>
+        public static void Shutdown()
+        {
+            if (CoreModule != null)
+            {
+                ((LiteLoader)CoreModule).Unload();
+                CoreModule = null;
+            }
+        }
+
+        /// <summary>
         /// Begins startup of LiteLoader
         /// </summary>
         public static void Startup(string gameAssembly)
@@ -18,18 +30,6 @@ namespace LiteLoader
                 var l = new LiteLoader(gameAssembly);
                 CoreModule = l;
                 l.Load();
-            }
-        }
-
-        /// <summary>
-        /// Begins shutdown and cleanup of LiteLoader
-        /// </summary>
-        public static void Shutdown()
-        {
-            if (CoreModule != null)
-            {
-                ((LiteLoader)CoreModule).Unload();
-                CoreModule = null;
             }
         }
 

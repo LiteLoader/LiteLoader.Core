@@ -55,7 +55,6 @@ namespace LiteLoader.DependencyInjection
             {
                 if (!_services.TryGetValue(serviceType, out descriptor))
                 {
-
                     foreach (KeyValuePair<Type, ServiceDescriptor> d in _services)
                     {
                         if (d.Key.IsAssignableFrom(serviceType))

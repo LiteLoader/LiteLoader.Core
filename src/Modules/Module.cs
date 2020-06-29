@@ -5,18 +5,17 @@ using System.Collections.Generic;
 using System.Data;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 
 namespace LiteLoader.Modules
 {
+#pragma warning disable CA1036 // Override methods on comparable types
     public abstract class Module : IModule
+#pragma warning restore CA1036 // Override methods on comparable types
     {
         #region Information
 
-        public string Title { get; }
-
         public string Author { get; }
-
+        public string Title { get; }
         public Version Version { get; }
 
         #endregion
@@ -38,22 +37,140 @@ namespace LiteLoader.Modules
                 throw new InvalidConstraintException("Missing ModuleInfoAttribute");
             }
 
-            Title = attribute.Title;
-            Author = attribute.Author;
-            Version = attribute.Version;
-            ExecutionEngine = Interface.CoreModule.ServiceProvider.GetService<IExecutionEngine>();
+            Title = attribute.Title ?? throw new ArgumentNullException(nameof(Title), "ModuleInfoAttribute.Title is missing");
+            Author = attribute.Author ?? throw new ArgumentNullException(nameof(Author), "ModuleInfoAttribute.Author is missing");
+            Version = attribute.Version ?? throw new ArgumentNullException(nameof(Version), "ModuleInfoAttribute.Version is missing");
+            ExecutionEngine = Interface.CoreModule.ServiceProvider.GetService<IExecutionEngine>() ?? throw new NullReferenceException("ExecutionEngine is missing");
+            hookSubscriptions = new Dictionary<string, List<MethodBase>>(StringComparer.Ordinal);
         }
 
-        public virtual object ExecuteHook(string name, object[] arguments)
+        #region Method Subscriptions
+
+        private readonly Dictionary<string, List<MethodBase>> hookSubscriptions;
+
+        public void SubscribeTo(string methodName, Type[] parameterTypes = null, Type returnType = null)
         {
-            if (string.IsNullOrEmpty(name))
+            if (string.IsNullOrEmpty(methodName))
+            {
+                return;
+            }
+
+            IEnumerable<MethodInfo> methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(m => m.Name.Equals(methodName, StringComparison.Ordinal) && m.HasMatchingSignature(parameterTypes, returnType, true));
+
+            SubscribeTo(methods);
+        }
+
+        public void UnsubscribeFrom(string methodName, Type[] parameterTypes = null, Type returnType = null)
+        {
+            if (string.IsNullOrEmpty(methodName))
+            {
+                return;
+            }
+
+            IEnumerable<MethodInfo> methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
+                .Where(_ => _.Name.Equals(methodName, StringComparison.Ordinal) && _.HasMatchingSignature(parameterTypes, returnType, true));
+
+            UnsubscribeFrom(methods);
+        }
+
+        protected void SubscribeTo(IEnumerable<MethodInfo> methods)
+        {
+            if (methods == null)
+            {
+                return;
+            }
+
+            foreach (MethodBase @base in methods)
+            {
+                if (!@base.DeclaringType.IsInstanceOfType(this) || @base is ConstructorInfo)
+                {
+                    continue;
+                }
+
+                string name = @base.Name;
+                List<MethodBase> subscriptions;
+                lock (hookSubscriptions)
+                {
+                    if (!hookSubscriptions.TryGetValue(name, out subscriptions))
+                    {
+                        subscriptions = new List<MethodBase>();
+                        hookSubscriptions[name] = subscriptions;
+                    }
+                }
+
+                lock (subscriptions)
+                {
+                    if (subscriptions.Contains(@base))
+                    {
+                        continue;
+                    }
+
+                    subscriptions.Add(@base);
+                }
+            }
+        }
+
+        protected void UnsubscribeFrom(IEnumerable<MethodInfo> methods)
+        {
+            if (methods == null)
+            {
+                return;
+            }
+
+            foreach (MethodBase @base in methods)
+            {
+                if (!@base.DeclaringType.IsInstanceOfType(this))
+                {
+                    continue;
+                }
+
+                string name = @base.Name;
+                List<MethodBase> subscriptions;
+                lock (hookSubscriptions)
+                {
+                    if (!hookSubscriptions.TryGetValue(name, out subscriptions))
+                    {
+                        continue;
+                    }
+                }
+
+                lock (subscriptions)
+                {
+                    if (subscriptions.Contains(@base))
+                    {
+                        subscriptions.Remove(@base);
+                    }
+                }
+            }
+        }
+
+        #endregion
+
+        public virtual object ExecuteHook(string methodName, object[] arguments)
+        {
+            if (string.IsNullOrEmpty(methodName))
             {
                 return null;
             }
 
-            MethodBase[] methods = GetType().GetMethods(BindingFlags.Public | BindingFlags.Instance)
-                .Where(m => m.Name.Equals(name, StringComparison.Ordinal)).ToArray();
-            MethodBase bestMethod = ExecutionEngine.FindBestMethod(methods, arguments, out object[] newArgs, out int?[] map, out ParameterInfo[] parameters, Interface.CoreModule.ServiceProvider);
+            List<MethodBase> methods;
+            lock (hookSubscriptions)
+            {
+                if (!hookSubscriptions.TryGetValue(methodName, out methods))
+                {
+                    return null;
+                }
+            }
+
+            MethodBase bestMethod;
+            object[] newArgs;
+            int?[] map;
+            ParameterInfo[] parameters;
+            lock (methods)
+            {
+                bestMethod = ExecutionEngine.FindBestMethod(methods, arguments, out newArgs, out map, out parameters, Interface.CoreModule.ServiceProvider);
+            }
 
             if (bestMethod == null)
             {

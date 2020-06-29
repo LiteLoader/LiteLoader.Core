@@ -5,9 +5,8 @@ namespace LiteLoader.Pooling
 {
     public sealed class ArrayPool<T> : IArrayPool<T>
     {
-
         /// <summary>
-        /// Initial startup count of each array length 
+        /// Initial startup count of each array length
         /// </summary>
         public readonly int InitialPooledItems;
 
@@ -22,9 +21,10 @@ namespace LiteLoader.Pooling
         public readonly int MaxPooledArrays;
 
         /// <inheritdoc cref="IArrayPool.Empty"/>
+#pragma warning disable CA1819 // Properties should not return arrays
         public T[] Empty { get; }
+#pragma warning restore CA1819 // Properties should not return arrays
 
-        private readonly Type _type;
         private readonly List<Queue<T[]>> _pool;
 
         public ArrayPool(int initialArrayCount, int maxArrayLength, int maxPooledArrays)
@@ -53,8 +53,9 @@ namespace LiteLoader.Pooling
             MaxArrayLength = maxArrayLength;
             MaxPooledArrays = maxPooledArrays;
 
-            _type = typeof(T);
+#pragma warning disable CA1825 // Avoid zero-length array allocations.
             Empty = new T[0];
+#pragma warning restore CA1825 // Avoid zero-length array allocations.
             _pool = new List<Queue<T[]>>(maxArrayLength);
 
             for (int i = 0; i < MaxArrayLength; i++)
@@ -65,7 +66,7 @@ namespace LiteLoader.Pooling
             }
         }
 
-        /// <inheritdoc cref="IArrayPool.Get" />
+        /// <inheritdoc cref="IArrayPool.Get"/>
         public T[] Get()
         {
             return Empty;

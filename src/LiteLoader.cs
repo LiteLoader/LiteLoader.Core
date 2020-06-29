@@ -1,7 +1,7 @@
-﻿using HarmonyLib;
-using LiteLoader.DependencyInjection;
+﻿using LiteLoader.DependencyInjection;
 using System;
 using System.IO;
+using System.Threading;
 
 namespace LiteLoader
 {
@@ -29,6 +29,9 @@ namespace LiteLoader
 
         public LiteLoader(string gameAssembly)
         {
+#if !NET35
+            CancellationSource = new CancellationTokenSource();
+#endif
             ServiceProvider = new DynamicServiceProvider();
             ServiceProvider.AddSingleton<IExecutionEngine, ExecutionEngine>();
 
@@ -64,8 +67,21 @@ namespace LiteLoader
 
         internal void Unload()
         {
-
+#if !NET35
+            CancellationSource.Cancel(false);
+#endif
         }
+
+#if !NET35
+
+        private CancellationTokenSource CancellationSource { get; }
+
+        public CancellationToken GenerateCancellationToken()
+        {
+            return CancellationSource.Token;
+        }
+
+#endif
 
         #endregion
     }

@@ -1,7 +1,13 @@
 ﻿using LiteLoader.Pooling;
 using System;
+using System.Collections.Generic;
 using System.ComponentModel;
+using System.Linq;
 using System.Reflection;
+
+#if !NET35
+using System.Threading.Tasks;
+#endif
 
 namespace LiteLoader.DependencyInjection
 {
@@ -15,15 +21,26 @@ namespace LiteLoader.DependencyInjection
             }
 
             ParameterInfo[] parameters = method.GetParameters();
-
+            object value;
             if (method is ConstructorInfo ctor)
             {
-                return ctor.Invoke(arguments);
+                value = ctor.Invoke(arguments);
             }
             else
             {
-                return method.Invoke(instance, arguments);
+                value = method.Invoke(instance, arguments);
             }
+
+#if !NET35
+
+            if (value != null && typeof(Task).IsInstanceOfType(value))
+            {
+                Task task = (Task)value;
+                value = task.AwaitResult(token: Interface.CoreModule.GenerateCancellationToken());
+            }
+#endif
+
+            return value;
         }
 
         public bool CreateParameterMap(ParameterInfo[] parameters, object[] arguments, out int?[] map, out object[] newArgs, out int usedArguments, IServiceProvider serviceProvider = null)
@@ -197,17 +214,18 @@ namespace LiteLoader.DependencyInjection
             return false;
         }
 
-        public MethodBase FindBestMethod(MethodBase[] methods, object[] arguments, out object[] newArgs, out int?[] map, out ParameterInfo[] parameters, IServiceProvider serviceProvider = null)
+        public MethodBase FindBestMethod(IEnumerable<MethodBase> methods, object[] arguments, out object[] newArgs, out int?[] map, out ParameterInfo[] parameters, IServiceProvider serviceProvider = null)
         {
             MethodBase best = null;
             int usedArguments = -1;
             newArgs = null;
             map = null;
             parameters = null;
+            int count = methods.Count();
 
-            for (int i = 0; i < methods.Length; i++)
+            for (int i = 0; i < count; i++)
             {
-                MethodBase method = methods[i];
+                MethodBase method = methods.ElementAt(i);
                 ParameterInfo[] param = method.GetParameters();
 
                 if (!CreateParameterMap(param, arguments, out int?[] pMap, out object[] pArgs, out int usedArgs, serviceProvider))
