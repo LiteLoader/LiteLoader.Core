@@ -18,6 +18,8 @@ namespace LiteLoader.Modules
         public string Title { get; }
         public Version Version { get; }
 
+        internal ModuleInfo ModuleInfo { get; set; }
+
         #endregion
 
         #region Services

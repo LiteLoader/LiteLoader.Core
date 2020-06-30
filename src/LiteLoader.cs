@@ -15,6 +15,8 @@ namespace LiteLoader
 
         public string ModuleDirectory { get; }
 
+        public string TemporaryDirectory { get; }
+
         public string GameModule { get; }
 
         #endregion
@@ -29,6 +31,8 @@ namespace LiteLoader
 
         public LiteLoader(string gameAssembly)
         {
+            TemporaryDirectory = Path.Combine(Path.GetTempPath(), "LiteLoader");
+            TemporaryDirectory = Path.Combine(TemporaryDirectory, Guid.NewGuid().ToString("B"));
 #if !NET35
             CancellationSource = new CancellationTokenSource();
 #endif
@@ -63,6 +67,22 @@ namespace LiteLoader
 
         internal void Load()
         {
+            if (!Directory.Exists(TemporaryDirectory))
+            {
+                Directory.CreateDirectory(TemporaryDirectory);
+            }
+
+            if (!Directory.Exists(FrameworkDirectory))
+            {
+                Directory.CreateDirectory(FrameworkDirectory);
+            }
+
+            if (!Directory.Exists(ModuleDirectory))
+            {
+                Directory.CreateDirectory(ModuleDirectory);
+            }
+
+
         }
 
         internal void Unload()
