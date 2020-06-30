@@ -1,5 +1,7 @@
 ﻿using System;
 using System.IO;
+using System.Linq;
+using System.Reflection;
 
 namespace LiteLoader.Modules
 {
@@ -18,6 +20,10 @@ namespace LiteLoader.Modules
         public string LocaleDirectory { get; }
 
         public string DataDirectory { get; }
+
+        public Assembly Assembly { get; private set; }
+
+        public Type ModuleType { get; private set; }
 
         public ModuleInfo(string moduleFile)
         {
@@ -75,6 +81,23 @@ namespace LiteLoader.Modules
 
             ShadowFile = Path.Combine(ShadowFile, Guid.NewGuid().ToString("B") + ".dll");
             File.Copy(ParentFile, ShadowFile);
+        }
+
+        public void LoadShadowFile()
+        {
+            if (string.IsNullOrEmpty(ShadowFile))
+            {
+                return;
+            }
+
+            if (Assembly != null)
+            {
+                return;
+            }
+
+            Assembly = Assembly.LoadFrom(ShadowFile);
+            ModuleType = Assembly.GetExportedTypes()
+                .FirstOrDefault(t => typeof(Module).IsAssignableFrom(t) && !t.IsAbstract);
         }
     }
 }
