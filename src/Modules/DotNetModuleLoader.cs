@@ -3,16 +3,12 @@ using LiteLoader.Pooling;
 using System;
 using System.Collections.Generic;
 using System.IO;
-using System.Linq;
-using System.Reflection;
-using System.Text;
-using System.Threading;
 
 namespace LiteLoader.Modules
 {
     internal sealed class DotNetModuleLoader : IModuleLoader
     {
-        private Queue<ModuleInfo> _loadingModules { get; }
+        private List<ModuleInfo> _loadingModules { get; }
         private List<Module> _loadedModules { get; }
         private List<ModuleInfo> _unloadedModules { get; }
 
@@ -22,7 +18,7 @@ namespace LiteLoader.Modules
 
         public DotNetModuleLoader()
         {
-            _loadingModules = new Queue<ModuleInfo>();
+            _loadingModules = new List<ModuleInfo>();
             _loadedModules = new List<Module>();
             _unloadedModules = new List<ModuleInfo>();
         }
@@ -96,29 +92,19 @@ namespace LiteLoader.Modules
                 return false;
             }
 
-            bool found = false;
             lock (_loadingModules)
             {
                 for (int i = 0; i < _loadingModules.Count; i++)
                 {
-                    ModuleInfo m = _loadingModules.Dequeue();
-                    
-                    if (found)
-                    {
-                        _loadingModules.Enqueue(m);
-                        continue;
-                    }
-
+                    ModuleInfo m = _loadingModules[i];
                     if (m.Name.Equals(moduleName, StringComparison.OrdinalIgnoreCase))
                     {
-                        found = true;
+                        return true;
                     }
-
-                    _loadingModules.Enqueue(m);
                 }
             }
 
-            return found;
+            return false;
         }
 
         public void LoadModule(string moduleName, bool immediately = false)
@@ -128,12 +114,12 @@ namespace LiteLoader.Modules
                 return;
             }
 
-            if (IsModuleLoaded(moduleName))
+            if (IsModuleLoading(moduleName))
             {
                 return;
             }
 
-            if (IsModuleLoading(moduleName))
+            if (IsModuleLoaded(moduleName))
             {
                 return;
             }
@@ -156,21 +142,11 @@ namespace LiteLoader.Modules
             {
                 if (!_loadingModules.Contains(moduleInfo))
                 {
-                    _loadingModules.Enqueue(moduleInfo);
+                    _loadingModules.Add(moduleInfo);
                 }
             }
 
-            if (immediately)
-            {
-                LoadModule(moduleInfo);
-            }
-            else
-            {
-                if (!ThreadPool.QueueUserWorkItem(LoadModule, moduleInfo))
-                {
-                    LoadModule(moduleInfo);
-                }
-            }
+            LoadModule(moduleInfo);
         }
 
         public void UnloadModule(string moduleName)
@@ -218,11 +194,14 @@ namespace LiteLoader.Modules
 
             Module module = (Module)ActivationUtility.CreateFactory(moduleInfo.ModuleType, this).Invoke(Interface.CoreModule.ServiceProvider);
             module.ModuleInfo = moduleInfo;
+            module.ExecuteHook("Init", Pool.Array<object>(0));
 
             lock (_loadingModules)
             {
-
+                _loadingModules.Remove(moduleInfo);
             }
+
+            FinalizeModuleLoad(module);
         }
     }
 }

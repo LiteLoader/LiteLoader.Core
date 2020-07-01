@@ -1,4 +1,5 @@
 ﻿using LiteLoader.DependencyInjection;
+using LiteLoader.Logging;
 using System;
 using System.IO;
 using System.Threading;
@@ -17,6 +18,8 @@ namespace LiteLoader
 
         public string TemporaryDirectory { get; }
 
+        public LogLevel LogLevel { get; }
+
         public string GameModule { get; }
 
         #endregion
@@ -31,6 +34,7 @@ namespace LiteLoader
 
         public LiteLoader(string gameAssembly)
         {
+            LogLevel = LogLevel.Development;
             TemporaryDirectory = Path.Combine(Path.GetTempPath(), "LiteLoader");
             TemporaryDirectory = Path.Combine(TemporaryDirectory, Guid.NewGuid().ToString("B"));
 #if !NET35
