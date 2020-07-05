@@ -2,7 +2,6 @@
 using LiteLoader.Logging;
 using System;
 using System.IO;
-using System.Threading;
 
 namespace LiteLoader
 {
@@ -28,6 +27,8 @@ namespace LiteLoader
 
         public IDynamicServiceProvider ServiceProvider { get; }
 
+        public ILogger RootLogger { get; private set; }
+
         #endregion
 
         #region I / O
@@ -38,10 +39,9 @@ namespace LiteLoader
             TemporaryDirectory = Path.Combine(Path.GetTempPath(), "LiteLoader");
             TemporaryDirectory = Path.Combine(TemporaryDirectory, Guid.NewGuid().ToString("B"));
 #if !NET35
-            CancellationSource = new CancellationTokenSource();
+            CancellationSource = new System.Threading.CancellationTokenSource();
 #endif
             ServiceProvider = new DynamicServiceProvider();
-            ServiceProvider.AddSingleton<IExecutionEngine, ExecutionEngine>();
 
             // Setup Directories
             RootDirectory = Environment.CurrentDirectory;
@@ -60,10 +60,10 @@ namespace LiteLoader
             ModuleDirectory = Path.Combine(FrameworkDirectory, "Modules");
             string gameModule = Path.Combine(ModuleDirectory, gameAssembly + ".dll");
 
-            if (!File.Exists(gameModule))
-            {
-                throw new IOException($"Game module not found | {gameModule}");
-            }
+            //if (!File.Exists(gameModule))
+            //{
+            //    throw new IOException($"Game module not found | {gameModule}");
+            //}
 
             FileInfo g = new FileInfo(gameModule);
             GameModule = g.FullName;
@@ -71,6 +71,7 @@ namespace LiteLoader
 
         internal void Load()
         {
+            RootLogger = new CompoundLogger();
             if (!Directory.Exists(TemporaryDirectory))
             {
                 Directory.CreateDirectory(TemporaryDirectory);
@@ -86,7 +87,8 @@ namespace LiteLoader
                 Directory.CreateDirectory(ModuleDirectory);
             }
 
-
+            ((CompoundLogger)RootLogger).AddLogger(new FileLogger(Path.Combine(FrameworkDirectory, "Core.log"), 1000000, TimeSpan.FromDays(30)));
+            ServiceProvider.AddSingleton<IExecutionEngine, ExecutionEngine>();
         }
 
         internal void Unload()
@@ -98,9 +100,9 @@ namespace LiteLoader
 
 #if !NET35
 
-        private CancellationTokenSource CancellationSource { get; }
+        private System.Threading.CancellationTokenSource CancellationSource { get; }
 
-        public CancellationToken GenerateCancellationToken()
+        public System.Threading.CancellationToken GenerateCancellationToken()
         {
             return CancellationSource.Token;
         }

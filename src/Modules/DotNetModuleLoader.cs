@@ -1,4 +1,5 @@
 ﻿using LiteLoader.DependencyInjection;
+using LiteLoader.Logging;
 using LiteLoader.Pooling;
 using System;
 using System.Collections.Generic;
@@ -33,6 +34,7 @@ namespace LiteLoader.Modules
                 {
                     _loadedModules.Add(module);
                     _loadedModules.Sort(ModuleComparer.Instance);
+                    Interface.CoreModule.RootLogger.Information("Loaded module {0} v{1} by {2}", module.Title, module.Version, module.Author);
                 }
             }
         }
@@ -183,6 +185,7 @@ namespace LiteLoader.Modules
             }
 
             module.ExecuteHook("Unload", Pool.Array<object>(0));
+            Interface.CoreModule.RootLogger.Information("Unloaded module {0} v{1} by {2}", module.Title, module.Version, module.Author);
         }
 
         private void LoadModule(object obj)

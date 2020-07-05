@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace LiteLoader.Logging
 {
-    public abstract class ThreadedLogger : CoreLogger
+    public abstract class ThreadedLogger : BaseLogger
     {
         private readonly Queue<LogMessage> _messageQueue;
 

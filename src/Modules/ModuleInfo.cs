@@ -1,4 +1,5 @@
-﻿using System;
+﻿using LiteLoader.Logging;
+using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -39,26 +40,31 @@ namespace LiteLoader.Modules
         {
             if (!Directory.Exists(ModuleDirectory))
             {
+                Interface.CoreModule.RootLogger.Debug("Creating module directory for {0}", Name);
                 Directory.CreateDirectory(ModuleDirectory);
             }
 
             if (!Directory.Exists(ConfigurationDirectory))
             {
+                Interface.CoreModule.RootLogger.Debug("Creating module configuration directory for {0}", Name);
                 Directory.CreateDirectory(ConfigurationDirectory);
             }
 
             if (!Directory.Exists(LocaleDirectory))
             {
+                Interface.CoreModule.RootLogger.Debug("Creating module locale directory for {0}", Name);
                 Directory.CreateDirectory(LocaleDirectory);
             }
 
             if (!Directory.Exists(DataDirectory))
             {
+                Interface.CoreModule.RootLogger.Debug("Creating module data directory for {0}", Name);
                 Directory.CreateDirectory(DataDirectory);
             }
 
             if (!ParentFile.StartsWith(ModuleDirectory, StringComparison.OrdinalIgnoreCase))
             {
+                Interface.CoreModule.RootLogger.Debug("Moving module {0} inside parent folder", Name);
                 string newFile = Path.Combine(ModuleDirectory, Path.GetFileName(ParentFile));
                 File.Move(ParentFile, newFile);
                 ParentFile = newFile;
@@ -81,6 +87,7 @@ namespace LiteLoader.Modules
 
             ShadowFile = Path.Combine(ShadowFile, Guid.NewGuid().ToString("B") + ".dll");
             File.Copy(ParentFile, ShadowFile);
+            Interface.CoreModule.RootLogger.Debug("Created shadow file of module {0}", Name);
         }
 
         public void LoadShadowFile()
@@ -96,8 +103,14 @@ namespace LiteLoader.Modules
             }
 
             Assembly = Assembly.LoadFrom(ShadowFile);
+            Interface.CoreModule.RootLogger.Debug("Loaded assembly for module {0}", Name);
             ModuleType = Assembly.GetExportedTypes()
                 .FirstOrDefault(t => typeof(Module).IsAssignableFrom(t) && !t.IsAbstract);
+
+            if (ModuleType == null)
+            {
+                Interface.CoreModule.RootLogger.Error("Unable to locate Module class for assembly {0}", Assembly.FullName);
+            }
         }
     }
 }

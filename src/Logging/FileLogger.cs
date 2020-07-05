@@ -54,7 +54,7 @@ namespace LiteLoader.Logging
 
         protected override void Write(LogMessage logMessage)
         {
-            string message = $"({logMessage.Timestamp.Hour}:{logMessage.Timestamp.Minute}:{logMessage.Timestamp.Second})[{logMessage.Level.ToString().ToUpper()}] {logMessage.Message}";
+            string message = $"({logMessage.Timestamp.ToString("HH:mm:ss")})[{logMessage.Level.ToString().ToUpper()}] {logMessage.Message}";
             _writer.WriteLine(message);
         }
 

@@ -2,7 +2,7 @@
 
 namespace LiteLoader.Logging
 {
-    public abstract class CoreLogger : ILogger
+    public abstract class BaseLogger : ILogger
     {
         protected struct LogMessage
         {
@@ -22,14 +22,14 @@ namespace LiteLoader.Logging
 
         public LogLevel Level { get; }
 
-        protected CoreLogger()
+        protected BaseLogger()
         {
             Level = Interface.CoreModule.LogLevel;
         }
 
         public void Log(object msg, LogLevel level)
         {
-            if (level.HasFlag(LogLevel.None) || !Level.HasFlag(level))
+            if (!Level.HasFlag(level))
             {
                 return;
             }

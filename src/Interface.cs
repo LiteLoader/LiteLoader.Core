@@ -1,9 +1,12 @@
 ﻿using LiteLoader.Pooling;
+using System;
 
 namespace LiteLoader
 {
     public static class Interface
     {
+        public static Action<string> Debug;
+
         public static ILiteLoader CoreModule { get; private set; }
 
         #region Initialization
